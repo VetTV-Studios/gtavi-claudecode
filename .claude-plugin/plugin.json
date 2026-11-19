@@ -1,13 +1,13 @@
 {
   "name": "gtavi-claudecode",
-  "displayName": "GTA 6 Clip Desk",
-  "version": "0.1.0",
-  "description": "Run a faceless GTA 6 clipping page with the fewest human actions. You approve every post.",
+  "displayName": "GTA 6 Clip Desk (VetTV)",
+  "version": "0.2.0",
+  "description": "Cut VetTV's own GTA 6 recordings into local 9:16 drafts. Nothing is uploaded. Other creators' streams are refused by default.",
   "author": {
-    "name": "Bodila51",
-    "url": "https://github.com/Bodila51"
+    "name": "VetTV Studios",
+    "url": "https://github.com/VetTV-Studios"
   },
-  "repository": "https://github.com/Bodila51/gtavi-claudecode",
-  "keywords": ["gta6", "clipping", "video", "shorts", "whop"],
+  "repository": "https://github.com/VetTV-Studios/gtavi-claudecode",
+  "keywords": ["gta6", "clipping", "shorts", "own-content", "vettv"],
   "skills": ["./skills/"]
 }

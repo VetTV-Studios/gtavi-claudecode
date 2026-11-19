@@ -1,28 +1,27 @@
 ---
 name: cheat-codes
-description: GTA 6 cheat codes and cheat-guide posts. Use when the user asks for GTA 6 cheats, a cheat carousel, a "how to enter cheats" post, or wants to refresh cheat statuses after launch.
+description: GTA 6 cheat-code posts from the checked reference list. Use when the user asks for GTA 6 cheats, a cheat carousel, or a status refresh after they test a code in their own game.
 ---
 
 # Cheat codes
 
-Answer only from `references/cheats.md`. Never add a code from memory.
+Answer only from `references/cheats.md`. Never add a code from memory or from a page that is not listed there.
 
 ## Make a 4-slide cheat carousel
 
-1. Cover: "GTA 6 cheat codes" + "PS5 and Xbox Series X|S" + one hook line (for example "The $250,000 cheat is real").
-2. How to enter: the 4 steps from the reference, plus the warning "Save first: cheats block saving, trophies and achievements for that session".
-3. Player and combat: money, focus, armor, ammo codes with their unlock tasks, D-pad arrows as big buttons.
-4. Vehicles and filters: spawns and screen filters with unlock tasks.
+1. Cover: "GTA 6 cheat codes" plus the platforms plus one hook line. Say "reported" if the code is not verified in Vet's own game.
+2. How to enter: the 4 steps from the reference, plus "Save first: cheats block saving, trophies and achievements for that session."
+3. Player and combat: codes with their unlock tasks.
+4. Vehicles and filters: the same, still labeled reported until verified.
 
-Style: dark background, one accent color, arrows as rounded key caps, the page handle on every slide. Caption: HOW TO template from the playbook, credit "codes via GameSpot" (or the source you used).
+Style: dark background, one accent color, the page handle on every slide. Caption uses the HOW TO template from the playbook. Credit the reference by name (GameSpot, Red Bull, or Insider Gaming). Do not cite any other site.
 
 ## Rules
 
 - Post only codes with status `reported` or `verified`. Never post `unconfirmed` ones.
-- Before posting any cheat code, check that it appears in at least one guide listed in the reference. If a code is not listed, write "code not found yet" and never invent the arrows. Never repost codes from the "Fake codes going around" list.
-- Until the codes are verified in the game, say "reported" in the caption, not "confirmed".
-- No mod menus, money glitches, GTA Online cheats or anything that breaks the rules of online play.
+- "Reported" means a guide in the reference lists it. It does not mean Rockstar confirmed it. Say "reported" in the caption until Vet tests it.
+- If a code is not in the reference, say "code not found yet" and do not invent the arrows.
+- After Vet tests a code in his own game, set `verified` with who tested it and the date, or `wrong` if it fails.
+- No mod menus, money glitches, GTA Online cheats, or anything that breaks online play.
 
-## After launch
-
-When a code is tested in the game, set its status to `verified` with who tested it and the date. If it fails, mark it `wrong` and post a correction.
+These posts are text and original graphics. They are not clips of other people.

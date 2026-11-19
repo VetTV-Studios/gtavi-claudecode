@@ -6,7 +6,7 @@ import argparse, difflib, json, re, sys, time, urllib.error, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-UA = "gta6-clip-desk/1.0 (questions-to-posts; read-only public JSON; contact via github Bodila51/gtavi-claudecode)"
+UA = "VetTV-gtavi-clipdesk/0.2 (questions research; public Reddit JSON; +https://github.com/VetTV-Studios/gtavi-claudecode)"
 STARTERS = ("how", "where", "what", "can", "is", "does", "why", "when")
 STOP = set("""a an the to of in on at for and or is are was were be been do does did can could would should will
 i you we they he she it my your our this that these those there here with about as by from if any

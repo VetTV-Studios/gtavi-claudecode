@@ -1,39 +1,59 @@
-"""Find the best clip moments in a video or VOD.
+"""Find the best clip moments in Vet's own recording.
+
+Local files are the default. A URL is accepted only when it matches
+config/allowed_sources.json. Pass --own (or a manifest) for a local file.
 
 Signals per second: loudness spikes, YouTube "most replayed" heatmap, live-chat spikes
-(YouTube VOD chat replay or a TwitchDownloader chat.json) and hype words in the transcript.
-Writes jobs/<id>/candidates.md + candidates.json.
+and hype words in the transcript. Writes jobs/<id>/candidates.md + candidates.json.
 
-usage: python moments.py <url-or-file> [--top 8] [--min 15] [--max 40] [--chat chat.json] [--max-minutes 90]
+usage: python3 moments.py <file> --own [--top 8] [--min 15] [--max 40] [--chat chat.json] [--max-minutes 90]
 """
 import argparse, json, math, re, sys, wave
 from pathlib import Path
 import numpy as np
 sys.path.insert(0, str(Path(__file__).parent))
-from common import ffprobe, is_url, job_dir, load_json, run, save_json, tool, ytdlp_base, ytdlp_json
+from allowlist import OWNER, authorize_url, own_mark
+from common import ffprobe, is_url, job_dir, load_json, run, save_json, tool, ytdlp_base
 
 HYPE = re.compile(r"\b(no way|oh my god|omg|what|wait|bro|let'?s go|holy|insane|crazy|yo+|wtf|dude|look at|nah|run|go go)\b", re.I)
 CHAT_HYPE = re.compile(r"(LMAO|LOL|KEKW|OMEGALUL|W+\b|CLIP|💀|😂|🔥|NO WAY|HOLY)", re.I)
 
 
-def fetch(src, d, max_min):
-    info = {}
+def _info_record(info, kind, mark):
+    keep = {k: info.get(k) for k in ("id", "title", "uploader", "channel", "uploader_id", "webpage_url",
+                                     "channel_url", "uploader_url", "channel_id", "duration", "view_count",
+                                     "upload_date", "heatmap", "is_live", "was_live")}
+    keep.update({"source_kind": kind, "source_owner": mark["source_owner"], "own_recording": mark["own_recording"],
+                 "credit": mark["credit"]})
+    return keep
+
+
+def fetch(src, d, max_min, mark, info=None):
     if is_url(src):
-        info = ytdlp_json(src)
-        save_json(d / "info.json", {k: info.get(k) for k in ("id", "title", "uploader", "channel", "uploader_id", "webpage_url",
-                                                             "duration", "view_count", "upload_date", "heatmap", "is_live", "was_live")})
+        info = info or authorize_url(src)
+        owned = {"own_recording": True, "source_owner": OWNER, "credit": mark.get("credit") or OWNER}
+        save_json(d / "info.json", _info_record(info, "url", owned))
+        save_json(d / "manifest.json", {"source": src, **owned, "source_kind": "url"})
         vid = d / "source.mp4"
         if not vid.exists():
             args = ytdlp_base() + ["-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080]/b", "--merge-output-format", "mp4",
                                    "-o", str(vid)]
             if (info.get("duration") or 0) > max_min * 60:
                 args += ["--download-sections", f"*0-{max_min * 60}"]
-            run(args + [src])
-        if info.get("was_live") and not (d / "chat.json").exists():  # YouTube chat replay
-            run(ytdlp_base() + ["--skip-download", "--write-subs", "--sub-langs", "live_chat", "-o", str(d / "chat"), src], check=False)
+            run(args + ["--", src])
+        if info.get("was_live") and not (d / "chat.json").exists():
+            run(ytdlp_base() + ["--skip-download", "--write-subs", "--sub-langs", "live_chat", "-o", str(d / "chat"), "--", src], check=False)
     else:
+        if not mark.get("own_recording"):
+            sys.exit("refusing local file: pass --own, or a --manifest with own_recording true and "
+                     f'source_owner "{OWNER}", only when this file is your own recording.')
         vid = Path(src).resolve()
-        save_json(d / "info.json", {"title": vid.stem, "webpage_url": str(vid)})
+        if not vid.is_file():
+            sys.exit(f"local file not found: {vid}")
+        record = _info_record({"title": vid.stem, "webpage_url": str(vid)}, "local", mark)
+        save_json(d / "info.json", record)
+        save_json(d / "manifest.json", {"source": str(vid), **{k: record[k] for k in ("source_kind", "source_owner", "own_recording", "credit")}})
+        info = {}
     return vid, info
 
 
@@ -115,9 +135,21 @@ def main():
     ap.add_argument("src"); ap.add_argument("--top", type=int, default=8)
     ap.add_argument("--min", type=float, default=15); ap.add_argument("--max", type=float, default=40)
     ap.add_argument("--chat"); ap.add_argument("--max-minutes", type=int, default=90)
+    ap.add_argument("--own", action="store_true", help="this local file is Vet's own recording")
+    ap.add_argument("--credit", default="", help="credit stored on the job manifest (default VetTV)")
+    ap.add_argument("--manifest", help="JSON with own_recording, source_owner, and credit")
     a = ap.parse_args()
+    mark = own_mark(a.own, a.credit, a.manifest)
+    probed = None
+    if is_url(a.src):
+        probed = authorize_url(a.src)
+        if not mark.get("credit"):
+            mark = {"own_recording": True, "source_owner": OWNER, "credit": OWNER}
+    elif not mark.get("own_recording"):
+        sys.exit("refusing local file: pass --own, or a --manifest with own_recording true and "
+                 f'source_owner "{OWNER}", only when this file is your own recording.')
     d = job_dir(a.src)
-    vid, info = fetch(a.src, d, a.max_minutes)
+    vid, info = fetch(a.src, d, a.max_minutes, mark, probed)
     dur = float(ffprobe(vid)["format"]["duration"])
     wav, db = audio_rms(vid, d)
     n = len(db)

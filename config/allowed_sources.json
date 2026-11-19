@@ -1,0 +1,28 @@
+{
+  "confirmed": false,
+  "owner": "VetTV",
+  "note": "PLACEHOLDER allowlist for Vet to confirm. Remote URLs are refused while confirmed is false. Set confirmed to true only after every entry below is a channel or account Vet owns. This fork will not clip or record anyone else.",
+  "channels": [
+    {
+      "label": "YouTube handheld",
+      "url": "https://www.youtube.com/@VetTVHandheld",
+      "handle": "@VetTVHandheld",
+      "match": ["youtube.com/@vettvhandheld"],
+      "status": "PLACEHOLDER — confirm this is Vet's own YouTube channel before setting confirmed to true"
+    },
+    {
+      "label": "X",
+      "url": "https://x.com/The_VetX",
+      "handle": "@The_VetX",
+      "match": ["x.com/the_vetx", "twitter.com/the_vetx"],
+      "status": "PLACEHOLDER — confirm this is Vet's own X account before setting confirmed to true"
+    }
+  ],
+  "twitch_logins": [
+    {
+      "login": "REPLACE_WITH_VETS_TWITCH_LOGIN",
+      "placeholder": true,
+      "status": "PLACEHOLDER — replace login with Vet's own Twitch channel and remove placeholder. Ignored until then."
+    }
+  ]
+}

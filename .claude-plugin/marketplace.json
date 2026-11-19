@@ -1,18 +1,18 @@
 {
   "name": "gtavi-claudecode",
-  "description": "A faceless GTA 6 clipping desk: find campaigns, trends and moments, cut captioned vertical clips, check the rules, learn from real numbers.",
+  "description": "VetTV fork: cut your own GTA 6 recordings into local vertical drafts. No auto-posting and no other-creator clipping.",
   "owner": {
-    "name": "Bodila51",
-    "url": "https://github.com/Bodila51"
+    "name": "VetTV Studios",
+    "url": "https://github.com/VetTV-Studios"
   },
   "plugins": [
     {
       "name": "gtavi-claudecode",
       "source": "./",
-      "description": "Run a faceless GTA 6 clipping page with the fewest human actions. You approve every post.",
-      "version": "0.1.0",
+      "description": "Cut VetTV's own GTA 6 recordings into local 9:16 drafts. Nothing is uploaded.",
+      "version": "0.2.0",
       "category": "productivity",
-      "tags": ["gta6", "clipping", "video", "shorts", "whop"]
+      "tags": ["gta6", "clipping", "shorts", "own-content", "vettv"]
     }
   ]
 }

@@ -1,14 +1,19 @@
-"""Twitch helpers that need no account and no API key.
+"""Anonymous Twitch chat for an allowlisted channel.
 
-top_streams(): Twitch's public web GQL endpoint with the public web Client-Id (same one yt-dlp uses).
-irc_chat():    anonymous IRC read-only chat (justinfan nick, no password).
-vod_chat():    not implemented, see note at the bottom.
+irc_chat() reads chat as a justinfan nick with no password and no API key.
+It connects only when the login is in config/allowed_sources.json.
+There is no stream search and no Twitch web client id.
 """
-import json, random, socket, ssl, sys, threading, time
-from datetime import datetime, timezone
+import json
+import random
+import re
+import socket
+import ssl
+import sys
+import threading
+import time
 
-GQL = "https://gql.twitch.tv/gql"
-CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+from allowlist import twitch_login_allowed
 
 try:
     import truststore
@@ -16,64 +21,7 @@ try:
 except Exception:
     pass
 
-
-def gql(query, variables=None):
-    import requests
-    r = requests.post(GQL, json={"query": query, "variables": variables or {}},
-                      headers={"Client-Id": CLIENT_ID}, timeout=15)
-    r.raise_for_status()
-    return r.json()
-
-
-_Q_GAME = """query($name:String!,$n:Int!){ game(name:$name){ displayName streams(first:$n){ edges{ node{
- title viewersCount createdAt previewImageURL(width:640,height:360) broadcaster{ login displayName } } } } } }"""
-_Q_SEARCH = """query($q:String!){ searchCategories(userQuery:$q,first:5){ edges{ node{ ... on Game{ name displayName } } } } }"""
-
-
-def _rows(game):
-    out = []
-    for e in ((game.get("streams") or {}).get("edges") or []):
-        n = e.get("node") or {}
-        b = n.get("broadcaster") or {}
-        if not b.get("login"):
-            continue
-        out.append({"login": b["login"], "name": b.get("displayName") or b["login"], "title": n.get("title") or "",
-                    "viewers": n.get("viewersCount") or 0, "created_at": n.get("createdAt"),
-                    "preview": n.get("previewImageURL"), "url": f"https://twitch.tv/{b['login']}"})
-    return out
-
-
-def top_streams(game="Grand Theft Auto VI", limit=20):
-    """Live streams of a Twitch category, sorted by viewers (desc). Empty list if the category is unknown/offline."""
-    names = [game]
-    try:
-        d = gql(_Q_SEARCH, {"q": game})
-        for e in ((d.get("data") or {}).get("searchCategories") or {}).get("edges") or []:
-            nm = (e.get("node") or {}).get("name")
-            if nm and nm not in names:
-                names.append(nm)
-    except Exception as ex:
-        print(f"twitch category search failed: {ex}", file=sys.stderr)
-    if game.lower() != "gta vi":
-        names.append("Grand Theft Auto VI" if "grand theft" not in game.lower() else "GTA VI")
-    for nm in names:
-        try:
-            g = ((gql(_Q_GAME, {"name": nm, "n": int(limit)}).get("data") or {}).get("game"))
-        except Exception as ex:
-            print(f"twitch gql failed: {ex}", file=sys.stderr)
-            continue
-        if g:
-            rows = _rows(g)
-            if rows:
-                return sorted(rows, key=lambda r: r["viewers"], reverse=True)
-    return []
-
-
-def started_ts(iso):
-    try:
-        return datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
-    except Exception:
-        return None
+_LOGIN = re.compile(r"[a-z0-9_]{1,25}")
 
 
 def _parse_privmsg(line):
@@ -93,10 +41,18 @@ def _parse_privmsg(line):
 
 
 def irc_chat(channel, out_path, stop_event=None, host="irc.chat.twitch.tv", port=6697):
-    """Append {t, user, text} JSON lines to out_path until stop_event is set. Reconnects on drop.
-    Uses TLS (6697); falls back to plain 6667 if TLS fails."""
-    stop_event = stop_event or threading.Event()
+    """Append {t, user, text} JSON lines to out_path until stop_event is set.
+
+    Refuses any channel that is not on the VetTV allowlist. Uses TLS (6697) and
+    falls back to plain 6667 only if that TLS connection fails.
+    """
+    ok, why = twitch_login_allowed(channel)
+    if not ok:
+        sys.exit(f"refusing Twitch chat: {why}")
     channel = channel.lower().lstrip("#")
+    if not _LOGIN.fullmatch(channel):
+        sys.exit("refusing Twitch chat: invalid login")
+    stop_event = stop_event or threading.Event()
     use_tls = True
     with open(out_path, "a", encoding="utf-8", buffering=1) as out:
         while not stop_event.is_set():
@@ -127,15 +83,11 @@ def irc_chat(channel, out_path, stop_event=None, host="irc.chat.twitch.tv", port
                             out.write(json.dumps({"t": time.time(), "user": m[0], "text": m[1]}, ensure_ascii=False) + "\n")
             except (OSError, ssl.SSLError) as ex:
                 if use_tls and not isinstance(ex, socket.timeout):
-                    use_tls = False  # maybe TLS is blocked; try plain 6667 next
+                    use_tls = False
             finally:
                 if sock:
-                    try: sock.close()
-                    except OSError: pass
+                    try:
+                        sock.close()
+                    except OSError:
+                        pass
             stop_event.wait(3)
-
-
-def vod_chat(video_id):
-    """Not implemented: VideoCommentsByOffsetOrCursor is only served through a persisted-query sha256 hash
-    that cannot be verified offline here, and plain-text queries for it are rejected."""
-    raise NotImplementedError("Twitch VOD chat needs a persisted-query hash; not supported")
