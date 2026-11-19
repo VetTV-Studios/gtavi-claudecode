@@ -1,4 +1,4 @@
-﻿"""Find the streamer's webcam box in a video.
+﻿"""Find the webcam box in a video.
 
 usage: python facecam.py <video> [--start S --end E] [--json out.json] [--debug out.jpg]
 importable: find_cam(video, start=None, end=None) -> dict
@@ -13,24 +13,56 @@ Method: YuNet face detection on ~12 sampled frames, keep the face cluster that s
 frames (in-game faces move). Then grow a rectangle around that face using a median-of-frames edge map:
 the webcam border is a straight, static line, so its edge response survives the median while gameplay edges blur out.
 """
-import argparse, json, os, subprocess, sys, urllib.request
+import argparse, hashlib, json, os, subprocess, sys, urllib.request
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-MODEL_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+# Pinned opencv_zoo commit (not the moving main branch). Checksum is the Git LFS blob.
+# See models/NOTICE and SECURITY.md.
+MODEL_COMMIT = "f12e12798e8314f7c074a6656816c048dcc95b7a"
+MODEL_URL = ("https://github.com/opencv/opencv_zoo/raw/" + MODEL_COMMIT
+             + "/models/face_detection_yunet/face_detection_yunet_2023mar.onnx")
+MODEL_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+REPO = Path(__file__).resolve().parent.parent
+VENDORED = REPO / "models" / "face_detection_yunet_2023mar.onnx"
 MODEL = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".cache")) / "gtavi-claudecode" / "models" / "face_detection_yunet_2023mar.onnx"
 N_FRAMES = 12
 MAX_W = 1280  # analysis width
 
 
+def _sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 16), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def model_path():
-    if not MODEL.exists() or MODEL.stat().st_size < 100_000:
-        MODEL.parent.mkdir(parents=True, exist_ok=True)
-        tmp = MODEL.with_suffix(".part")
+    """Return the YuNet ONNX path only after its SHA-256 matches the pinned blob."""
+    if VENDORED.is_file():
+        digest = _sha256(VENDORED)
+        if digest != MODEL_SHA256:
+            sys.exit(f"vendored YuNet model failed SHA-256 check (got {digest}). Refusing to use it.")
+        return str(VENDORED)
+    if MODEL.is_file():
+        if _sha256(MODEL) == MODEL_SHA256:
+            return str(MODEL)
+        MODEL.unlink()
+    MODEL.parent.mkdir(parents=True, exist_ok=True)
+    tmp = MODEL.with_suffix(".part")
+    try:
         urllib.request.urlretrieve(MODEL_URL, tmp)
-        tmp.replace(MODEL)
+        digest = _sha256(tmp)
+    except Exception as ex:
+        tmp.unlink(missing_ok=True)
+        sys.exit(f"could not download the pinned YuNet model: {ex}")
+    if digest != MODEL_SHA256:
+        tmp.unlink(missing_ok=True)
+        sys.exit(f"downloaded YuNet model failed SHA-256 check (got {digest}). Refusing to use it.")
+    tmp.replace(MODEL)
     return str(MODEL)
 
 
@@ -88,7 +120,7 @@ def stable_face(dets, n):
     for _, seed in flat:
         members = {}
         for i, d in flat:
-            # same webcam face: centre within ~1.3 face widths (streamers sway) and similar size
+            # same webcam face: centre within ~1.3 face widths (the person sways) and similar size
             dx = (seed[0] + seed[2] / 2) - (d[0] + d[2] / 2); dy = (seed[1] + seed[3] / 2) - (d[1] + d[3] / 2)
             if (dx * dx + dy * dy) ** 0.5 < 1.3 * max(seed[2], d[2]) and 0.6 < d[2] / seed[2] < 1.67:
                 if i not in members or d[4] > members[i][4]:

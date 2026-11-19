@@ -1,6 +1,6 @@
 # GTA 6 cheat codes (PS5 and Xbox Series X|S)
 
-Status as of Nov 18, 2026: codes reported by pre-launch guides (GameSpot, Red Bull, Insider Gaming and others). Rockstar has no official cheat page yet. Recheck every code in the game after launch and update the status column.
+Status as of Nov 18, 2026: codes reported by GameSpot, Red Bull, and Insider Gaming. These are not Rockstar-official. Every code below stays `reported` until Vet tests it in his own game. Do not add codes from any other site.
 
 ## How to enter
 
@@ -30,7 +30,7 @@ Status as of Nov 18, 2026: codes reported by pre-launch guides (GameSpot, Red Bu
 | MTL Pumper (spawn) | ← ↑ → ↓ ← → → ↑ | Discover it in the Progress menu | reported |
 | HVY Bulldozer (spawn) | ← ↑ → ↓ ← → → ↓ | Discover it in the Progress menu | reported |
 | Cataclysm (filter) | ↓ ↓ ↑ → → ↑ ← ← → → | Discover Martha's Vamos in the Progress menu | reported |
-| Dollhouse (filter: vivid colors, narrow aspect ratio) | ↓ ↓ ↑ → → ↑ ← ← ↓ → | Spend 8 hours with your partner | reported (Stupid Dope) |
+| Dollhouse (filter: vivid colors, narrow aspect ratio) |  | Spend 8 hours with your partner | unconfirmed (the only previous citation was dropped; do not post a code) |
 | Faded Glory (filter: color CRT TV look) | ↓ ↓ ↑ → → ↑ ← ← ← → | Rob 50 stores with your partner | reported (GameSpot) |
 
 Statuses: **reported** = listed in at least one published guide; **unconfirmed** = not found in any guide, never post it; **verified** = tested in the game after launch (add who and when).
@@ -45,7 +45,8 @@ A viral image titled "GTA VI cheat codes - CRACKED BY FABLE 5.2" mixes real code
 
 ## Sources
 
+Reported guides only. Not an official Rockstar list.
+
 - GameSpot: https://www.gamespot.com/articles/all-gta-6-cheats-and-how-to-unlock-them/
 - Red Bull: https://www.redbull.com/int-en/gta-6-cheat-codes
 - Insider Gaming: https://insider-gaming.com/all-gta-6-cheats-best-grand-theft-auto-6-cheat-codes/
-- Stupid Dope: https://stupiddope.com/2026/11/gta-vi-cheat-codes-for-ps5-all-61-cheats-every-confirmed-button-combo-and-the-unlock-rules-that-change-everything/

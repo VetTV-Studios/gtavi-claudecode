@@ -9,7 +9,7 @@ JOBS = ROOT / "jobs"
 def tool(name):
     p = shutil.which(name)
     if not p:
-        sys.exit(f"{name} not found. Run the setup skill first (it installs ffmpeg and yt-dlp).")
+        sys.exit(f"{name} not found on PATH. This repo does not install packages.")
     return p
 
 
@@ -32,7 +32,7 @@ def ytdlp_base():
 
 
 def ytdlp_json(url, extra=()):
-    r = run(ytdlp_base() + ["-J", *extra, url], capture=True)
+    r = run(ytdlp_base() + ["-J", *extra, "--", url], capture=True)
     return json.loads(r.stdout)
 
 

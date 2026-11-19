@@ -1,4 +1,4 @@
-"""Secrets map: collect hidden spots, cars, collectibles and easter eggs from creator videos, verify them, then post.
+"""Secrets map: collect hidden spots from Vet's own recordings, verify them, then draft posts.
 
 Entries live in secrets.csv. Nothing is posted unless its status is "verified".
 Exploits, money glitches, duplication tricks, leaks and "play early" content are never collected.

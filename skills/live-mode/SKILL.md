@@ -1,25 +1,29 @@
 ---
 name: live-mode
-description: Record a live YouTube stream with its chat and clip chat spikes in near real time. Use when the user gives a live URL, says "go live mode", or wants clips from a launch stream as it happens.
+description: Record an allowlisted VetTV live stream and cut chat spikes. Use only for Vet's own channel, when he gives that live URL or says to record his stream.
 ---
 
 # Live mode
 
-Run:
+Set `GTAVI_ROOT` to the repo root (`export GTAVI_ROOT="${CLAUDE_PLUGIN_ROOT}"` in Claude Code).
 
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/live.py" <youtube-live-url> --minutes 60`
+```bash
+python3 "$GTAVI_ROOT/scripts/live.py" "https://www.youtube.com/@VetTVHandheld/live" --minutes 60
+```
 
-It records the stream in chunks with chat and cuts around chat spikes: 15 seconds before and 20 seconds after each spike.
+Windows virtualenv: `"%GTAVI_ROOT%\.venv\Scripts\python.exe"`.
+
+The URL has to match `config/allowed_sources.json`, and `confirmed` has to be true. The placeholders in that file are not confirmed. A Twitch login is read for chat only when that login is on the allowlist. Any other channel, including a bigger streamer's, is refused before yt-dlp runs. The script passes `--` before the URL.
 
 Before starting:
 
-1. Confirm the stream is public and not a leak, pirated copy or "play early" content. If unsure, do not start.
-2. Note the streamer's handle for credit.
+1. Read the allowlist with Vet. If `confirmed` is false, do not flip it yourself. Ask him to confirm the channels are his.
+2. Refuse leaks, pirated copies, and "play early" streams.
 
 While it runs:
 
-1. Check new clips in `jobs/` every few minutes. Review each one: pick the best, skip spoilers and nudity.
-2. For each keeper, run `hook-writer` then `clip-cutter` (or use the auto-cut if the script produced one), then `rule-check`.
-3. Send the human one message with the best 1 to 3 clips (caption, credit, file path). They say "yes" and post. Speed matters, so keep it to one message.
+1. Review new clips under the job's `live/` folder. Skip spoilers and nudity.
+2. For each keeper, run `hook-writer`, then `clip-cutter` if it still needs a vertical master, then `rule-check`.
+3. Send one message with the best 1 to 3 local files and captions. The human posts. Nothing is uploaded.
 
-When done: list what was recorded, what was clipped, and log the posts via `learning-loop`. Ask the streamer for permission when they are reachable.
+When it stops: list what was recorded and what was cut. Logging happens after the human actually publishes.

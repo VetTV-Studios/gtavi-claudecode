@@ -1,5 +1,7 @@
-"""Record a YouTube or Twitch (twitch.tv/<login>, no key) live stream and auto-cut clips when live chat spikes.
-Twitch chat is read via anonymous IRC (twitch.py) instead of yt-dlp live_chat.
+"""Record an allowlisted VetTV live stream and auto-cut clips when live chat spikes.
+
+The URL must match config/allowed_sources.json. Twitch chat is read via anonymous
+IRC (twitch.py) only for an allowlisted login. Other channels are refused.
 
 Records the stream in 60 s segments into jobs/<id>/live/, reads live chat as it arrives, and on a chat
 spike cuts [spike-before, spike+after] into live/spike_<n>.mp4 and appends a row to live/spikes.md.
@@ -9,11 +11,13 @@ usage: python live.py <youtube-live-url> --minutes 60 [--before 15 --after 20 --
                       --ratio 3 --min-msgs 8 --lag 8 --cooldown 45]
 Stop early with Ctrl+C. Pending spikes are still cut on shutdown.
 """
-import argparse, json, re, subprocess, sys, time
+import argparse, json, re, subprocess, sys, threading, time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
+import twitch
+from allowlist import authorize_url, twitch_login_allowed, twitch_login_from_url
 from common import job_dir, run, save_json, tool, ytdlp_base
 
 HYPE = re.compile(r"(?i:LMAO|KEKW|LOL|CLIP|HOLY|NO WAY)|\bW+\b|[💀😂🔥]")
@@ -126,15 +130,10 @@ class TwitchTail(ChatTail):
             self.words.setdefault(s, []).append(txt)
 
 
-def twitch_login(url):
-    m = re.match(r"https?://(?:www\.|m\.)?twitch\.tv/([A-Za-z0-9_]+)/?(?:[?#].*)?$", url)
-    return m.group(1).lower() if m and m.group(1).lower() not in ("videos", "directory") else None
-
-
 class Recorder:
     def __init__(self, ld, url, minutes):
         self.ld, self.csv = ld, ld / "segments.csv"
-        r = run(ytdlp_base() + ["-g", "-f", "b[height<=720]/bv*[height<=720]+ba/b", url], capture=True)
+        r = run(ytdlp_base() + ["-g", "-f", "b[height<=720]/bv*[height<=720]+ba/b", "--", url], capture=True)
         urls = [u for u in r.stdout.split() if u.startswith("http")]
         if not urls:
             sys.exit("could not get a stream URL (is the video live?)")
@@ -212,6 +211,12 @@ def main():
     ap.add_argument("--cooldown", type=float, default=45)
     ap.add_argument("--lag", type=float, default=8, help="seconds to shift the clip later: stream delay + chat reaction time")
     a = ap.parse_args()
+    login = twitch_login_from_url(a.url)
+    if login:
+        ok, why = twitch_login_allowed(login)
+        if not ok:
+            sys.exit(f"refusing Twitch stream: {why}")
+    authorize_url(a.url)
 
     d = job_dir(a.url)
     ld = d / "live"
@@ -226,9 +231,7 @@ def main():
     end_at = start + a.minutes * 60 + 30
 
     rec = Recorder(ld, a.url, a.minutes)
-    login = twitch_login(a.url)
     if login:
-        import threading, twitch
         stop_chat = threading.Event()
         chat_thread = threading.Thread(target=twitch.irc_chat, args=(login, ld / "chat.twitch.jsonl", stop_chat), daemon=True)
         chat_thread.start()
@@ -236,7 +239,7 @@ def main():
         tail = TwitchTail(ld, start)
     else:
         chat = subprocess.Popen(ytdlp_base() + ["--skip-download", "--write-subs", "--sub-langs", "live_chat",
-                                                "-o", str(ld / "chat"), a.url],
+                                                "-o", str(ld / "chat"), "--", a.url],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
         tail = ChatTail(ld, start)

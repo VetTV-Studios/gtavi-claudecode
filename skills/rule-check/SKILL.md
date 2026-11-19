@@ -1,20 +1,30 @@
 ---
 name: rule-check
-description: Check a finished clip against technical specs, campaign rules and banned content before posting. Use before every upload, or when the user asks "is this ok to post".
+description: Check a finished VetTV draft for format, credit, ownership, and banned phrases before the human posts it. Use before every publish decision.
 ---
 
 # Rule check
 
-Run:
+Set `GTAVI_ROOT` to the repo root (`export GTAVI_ROOT="${CLAUDE_PLUGIN_ROOT}"` in Claude Code).
 
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/check.py" <clip.mp4> --campaign campaigns.md`
+```bash
+python3 "$GTAVI_ROOT/scripts/check.py" "$CLIP_DESK_HOME/jobs/<id>/edits/clip_<n>.mp4" --caption "text"
+```
 
-It checks: length, 1080x1920, audio present, the campaign's rules from `campaigns.md`, and banned content (leaks, "play early", piracy).
+Windows virtualenv: `"%GTAVI_ROOT%\.venv\Scripts\python.exe"`.
+
+The sidecar `clip_<n>.json` next to the MP4 is required. The script fails when:
+
+- the frame is not about 1080x1920 at about 30 fps, or audio is missing, or the length is outside the default 7 to 60 seconds
+- `credit` is empty (this is the check restored after upstream commit `2aee0c6` removed it)
+- `source_owner` is not `VetTV`, the file is not a local recording marked `own_recording`, and the URL is not on the confirmed allowlist
+- the hook or caption contains leak, play early, free download, mod menu, money glitch, AI gameplay, or the other banned phrases
+
+An optional `--campaign rules.md` can add hashtags, a mention, or a tighter length. There is no campaign finder in this fork. Do not go looking for paid clipping campaigns.
 
 Then:
 
-1. Show PASS or FAIL per check in a short list.
-2. On FAIL: fix the cause (re-cut with `clip-cutter`, add the credit, trim) and re-run. Do not argue with a failed check.
-3. Read the caption yourself too. It must credit the creator in the text, no invented facts, no "official" wording, and match the platform's caption rules in the playbook.
-4. The script cannot judge everything. If the campaign rules are `unknown` or missing, ask the human to paste them.
-5. Only after all checks pass, send the human the clip, caption and credit and wait for "yes". The human posts it. Never auto-upload.
+1. Show PASS or FAIL per check.
+2. On FAIL, fix the cause and re-run. A failed ownership check means the clip is not ours. Delete the draft. Do not hunt for a credit line to paste over someone else's footage.
+3. Read the caption yourself. No invented facts, no "official" wording.
+4. After a pass, send the human the local file, caption, and credit, and wait for "yes". The human posts it. Never auto-upload.

@@ -6,10 +6,95 @@ loudness normalised to -14 LUFS. Writes jobs/<id>/edits/clip_<n>.mp4 + .json (me
 usage: python cut.py jobs/<id> --pick 1 [--layout fill|blur|facecam|react] [--hook "TEXT"]
                      [--cam auto|x:y:w:h] [--title "TEXT" --title-style box|outline --title-secs 0] [--captions word|bubble|none]
 """
-import argparse, sys
+import argparse, os, re, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from common import load_json, run, save_json, tool
+from common import ffprobe, load_json, run, save_json, tool
+from facecam import face_crop_expr, find_cam, has_gameplay, inner_edges
+
+# Archivo Black first. Arial Black and Arial are last: Windows ships them and has no fontconfig.
+FONT_CANDIDATES = ("Archivo Black", "Anton", "Bebas Neue", "Liberation Sans", "Noto Sans", "Arial Black", "Arial")
+FONT_FILES = {
+    "archivoblack-regular.ttf": "Archivo Black",
+    "archivo black.ttf": "Archivo Black",
+    "archivoblack.ttf": "Archivo Black",
+    "anton-regular.ttf": "Anton",
+    "anton.ttf": "Anton",
+    "bebasneue-regular.ttf": "Bebas Neue",
+    "bebasneue.ttf": "Bebas Neue",
+    "liberationsans-regular.ttf": "Liberation Sans",
+    "liberationsans-bold.ttf": "Liberation Sans",
+    "notosans-regular.ttf": "Noto Sans",
+    "notosans-bold.ttf": "Noto Sans",
+    "ariblk.ttf": "Arial Black",
+    "arial black.ttf": "Arial Black",
+    "arial.ttf": "Arial",
+    "arialbd.ttf": "Arial",
+}
+
+
+def choose_font(fc_families, file_families, win32):
+    """Pick the first installed candidate. Never invent Archivo Black when it was not found."""
+    for pool in (fc_families, file_families):
+        have = {name.lower() for name in pool}
+        for name in FONT_CANDIDATES:
+            if name.lower() in have:
+                return name
+    return "Arial" if win32 else "Liberation Sans"
+
+
+def _fc_families():
+    if not shutil.which("fc-list"):
+        return set()
+    try:
+        listed = subprocess.run(["fc-list", "--format", "%{family}\n"], capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    families = set()
+    for line in (listed.stdout or "").splitlines():
+        for family in line.split(","):
+            name = family.strip()
+            if name:
+                families.add(name)
+    return families
+
+
+def _font_dirs():
+    home = Path.home()
+    windir = os.environ.get("WINDIR") or os.environ.get("SystemRoot")
+    dirs = []
+    if windir:
+        dirs.append(Path(windir) / "Fonts")
+    dirs.extend([
+        home / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts",
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+        home / ".local" / "share" / "fonts",
+        home / ".fonts",
+        Path("/Library/Fonts"),
+        Path("/System/Library/Fonts"),
+        home / "Library" / "Fonts",
+    ])
+    return [d for d in dirs if d.is_dir()]
+
+
+def _file_families():
+    found = set()
+    for directory in _font_dirs():
+        for path in directory.rglob("*"):
+            if not path.is_file():
+                continue
+            family = FONT_FILES.get(path.name.lower())
+            if family:
+                found.add(family)
+    return found
+
+
+def caption_font():
+    """Prefer Archivo Black. Fall back through fonts that are actually installed."""
+    installed = _fc_families()
+    files = set() if installed else _file_families()
+    return choose_font(installed, files, sys.platform == "win32")
 
 W, H = 1080, 1920
 
@@ -19,11 +104,10 @@ def ts(t):
     return f"{h}:{m:02d}:{s:05.2f}"
 
 
-import re as _re
-_SLURS = _re.compile(r"\b(nigg\w*|n[i1]gg?a\w*|f[a@]gg?\w*|retard\w*|tranny\w*|chink\w*|spic\w*|kike\w*)\b", _re.I)
+_SLURS = re.compile(r"\b(nigg\w*|n[i1]gg?a\w*|f[a@]gg?\w*|retard\w*|tranny\w*|chink\w*|spic\w*|kike\w*)\b", re.I)
 
 
-_SWEARS = _re.compile(r"\b(fuck\w*|motherfuck\w*|shit\w*|bitch\w*|cunt\w*|dick\w*|pussy\w*|asshole\w*|bastard\w*|whore\w*|slut\w*)\b", _re.I)
+_SWEARS = re.compile(r"\b(fuck\w*|motherfuck\w*|shit\w*|bitch\w*|cunt\w*|dick\w*|pussy\w*|asshole\w*|bastard\w*|whore\w*|slut\w*)\b", re.I)
 
 
 def _mask(m):
@@ -51,7 +135,8 @@ def wrap(text, width):
     return lines + ([cur] if cur else [])
 
 
-def build_ass(words, s0, e0, hook, cap_y, title=None, caps='word', profanity=False):
+def build_ass(words, s0, e0, hook, cap_y, title=None, caps='word', profanity=False, font=None):
+    font = (font or caption_font()).replace(",", "")
     hdr = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
@@ -60,11 +145,11 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,Arial Black,92,&H00FFFFFF,&H0000E5FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1
-Style: Hook,Arial Black,68,&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,70,70,170,1
-Style: TitleBox,Arial Black,66,&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,0,1
-Style: TitleOut,Arial Black,80,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,9,2,8,50,50,0,1
-Style: Bubble,Arial,58,&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,16,0,5,60,60,0,1
+Style: Cap,{font},92,&H00FFFFFF,&H0000E5FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1
+Style: Hook,{font},68,&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,70,70,170,1
+Style: TitleBox,{font},66,&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,1,0,0,5,40,40,0,1
+Style: TitleOut,{font},80,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,9,2,8,50,50,0,1
+Style: Bubble,{font},58,&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,16,0,5,60,60,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -124,7 +209,7 @@ def even(n):
 
 
 def video_filter(layout, cam, ass, band=None, cam_side='right', src=None, game_x=None, face_expr=None):
-    """Layout + burned-caption filter graph ending in [vo]. Reused by translate.py."""
+    """Layout + burned-caption filter graph ending in [vo]."""
     if layout == "fill":
         v = f"[0:v]scale=-2:{H},crop={W}:{H}[v]"
     elif layout == "blur":
@@ -200,7 +285,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("job"); ap.add_argument("--pick", type=int, default=1)
     ap.add_argument("--layout", choices=["fill", "blur", "facecam", "react"], default="blur")
-    ap.add_argument("--title", default="", help="reaction title, e.g. 'Speed REALIZED why GTA 6 took 13 YEARS'")
+    ap.add_argument("--title", default="", help="title on Vet's own react layout, e.g. 'The cop MISSED the alley'")
     ap.add_argument("--title-style", choices=["box", "outline"], default="box")
     ap.add_argument("--title-secs", type=float, default=0, help="0 = whole clip")
     ap.add_argument("--captions", choices=["word", "bubble", "none"], default="word")
@@ -217,20 +302,16 @@ def main():
     layout, cam, side = a.layout, a.cam, 'right'
     face_expr = None
     if layout in ('react', 'facecam') and cam == 'auto':
-        from facecam import find_cam
         r = find_cam(c['source'], s0, e0)
         if layout == 'react' and r.get('mode') not in ('cam', 'face'):
-            sys.exit(f"skipped: no streamer face over gameplay in this moment ({r.get('mode')}: {r.get('reason', '')}). "
-                     "React clips need the game on screen with the cam as a separate box. Pick another moment or stream.")
+            sys.exit(f"skipped: no face over gameplay in this moment ({r.get('mode')}: {r.get('reason', '')}). "
+                     "React clips need the game on screen with Vet's own camera as a separate box. Pick another moment.")
         if layout == 'react':
-            from facecam import has_gameplay, face_crop_expr
             if not has_gameplay(c['source'], s0, e0, r['box']):
                 sys.exit("skipped: the area outside the webcam is not gameplay (same scene or no game on screen). "
                          "Pick a moment where GTA 6 is on screen.")
             if r.get('mode') == 'face' and r.get('face_track'):
-                from common import ffprobe as _fp
-                _vs = [x for x in _fp(c['source'])['streams'] if x.get('codec_type') == 'video'][0]
-                from facecam import inner_edges
+                _vs = [x for x in ffprobe(c['source'])['streams'] if x.get('codec_type') == 'video'][0]
                 sw_, sh_ = int(_vs['width']), int(_vs['height'])
                 bnd = inner_edges(c['source'], s0, e0, r['face'], sw_, sh_)
                 print(f'facecam: cam borders L{bnd[0]} T{bnd[1]} R{bnd[2]} B{bnd[3]} px')
@@ -267,7 +348,6 @@ def main():
     ass.write_text(build_ass(cap_words, s0, e0, a.hook, cap_y, title=title, caps=caps, profanity=a.allow_profanity), encoding="utf-8")
     src = None; gx = None
     if layout == 'react':
-        from common import ffprobe
         vs = [x for x in ffprobe(c['source'])['streams'] if x.get('codec_type') == 'video'][0]
         src = (int(vs['width']), int(vs['height']))
         gx = game_offset(c['source'], s0, e0, src, [float(t) for t in cam.split(':')])
@@ -277,10 +357,17 @@ def main():
          "-filter_complex", v, "-map", "[vo]", "-map", "0:a?", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
          "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
          "-ar", "48000", "-movflags", "+faststart", str(mp4)])
-    info = c.get("info", {})
-    save_json(out / f"clip_{a.pick}.json", {"file": str(mp4), "start": s0, "end": e0, "layout": layout, "hook": a.hook or a.title, "title": a.title, "cam": cam,
-                                            "source_url": info.get("webpage_url"), "source_title": info.get("title"),
-                                            "source_channel": info.get("channel") or info.get("uploader")})
+    info = c.get("info") or {}
+    save_json(out / f"clip_{a.pick}.json", {
+        "file": str(mp4), "start": s0, "end": e0, "layout": layout, "hook": a.hook or a.title, "title": a.title, "cam": cam,
+        "source_url": info.get("webpage_url") or "", "source_title": info.get("title"),
+        "source_channel": info.get("channel") or info.get("uploader"),
+        "channel_url": info.get("channel_url") or "", "uploader_url": info.get("uploader_url") or "",
+        "uploader_id": info.get("uploader_id") or "", "channel_id": info.get("channel_id") or "",
+        "source_kind": info.get("source_kind") or "", "source_owner": info.get("source_owner") or "",
+        "own_recording": bool(info.get("own_recording")), "credit": info.get("credit") or "",
+        "caption_font": caption_font(),
+    })
     print(mp4)
 
 

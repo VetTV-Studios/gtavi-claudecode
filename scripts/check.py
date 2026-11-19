@@ -7,10 +7,11 @@ campaigns.md lines understood: min_seconds: 15 / max_seconds: 60 / required_hash
 import argparse, re, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
+from allowlist import clip_source_ok
 from common import ffprobe, load_json
 
 BANNED = ["leak", "leaked build", "play early", "early access download", "free download", "crack", "piracy",
-          "mod menu", "money glitch", "afk bot"]
+          "mod menu", "money glitch", "afk bot", "ai gameplay"]
 
 
 def parse_campaign(path):
@@ -69,6 +70,13 @@ def main():
     add("has audio", au is not None)
     add(f"duration {rules['min']:g}-{rules['max']:g}s" + ("" if have_campaign else " (default)"),
         rules["min"] <= dur <= rules["max"], f"{dur:.1f}s")
+    credit = str(meta.get("credit", "")).strip() if side.exists() else ""
+    if side.exists():
+        add("credit present", bool(credit), credit or "empty")
+    else:
+        add("credit present", False, f"no sidecar {side.name}; cannot verify credit")
+    owned, owned_detail = clip_source_ok(meta if side.exists() else {})
+    add("source is VetTV-owned", owned, owned_detail)
     hook = meta.get("hook", "")
     hits = banned_in(hook + " " + a.caption)
     add("no banned terms in caption/hook", not hits, ", ".join(hits))

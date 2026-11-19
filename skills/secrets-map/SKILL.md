@@ -1,33 +1,49 @@
 ---
 name: secrets-map
-description: Build and post a verified map of GTA 6 hidden spots, rare cars, collectibles, money spots and easter eggs found by creators. Use when the user wants secrets, hidden spots, easter eggs or evergreen "hidden in Leonida" tip posts, or says scan a video for secrets.
+description: Build a verified map of GTA 6 hidden spots from Vet's own transcripts. Use when the user wants secrets, hidden spots, or tip posts taken from his recordings.
 ---
 
 # Secrets map
 
 Entries live in `secrets.csv` (id, category, name, where, how, source_channel, source_url_with_timestamp, found_on, status, verified_by, notes). Categories: place, money, car, collectible, easter_egg, other. Status: unverified, verified, wrong.
 
+Scan only jobs whose manifest says the recording is Vet's (`source_owner` `VetTV`). Do not scan someone else's VOD.
+
 ## Commands
 
-Run from the project folder with `.venv\Scripts\python scripts\secrets_map.py ...` (`--csv path` before the subcommand to use another file).
+Set `GTAVI_ROOT` to the repo root (`export GTAVI_ROOT="${CLAUDE_PLUGIN_ROOT}"` in Claude Code).
 
-- `scan jobs/<id>`: reads `transcript.json` and `info.json`, finds secret-type mentions (hidden, secret, easter egg, money, cash, stash, collectible, rare car, location, spawn, unlock) and adds them as `unverified` with a quote and a `?t=` link to the source. Duplicates are skipped. Exploit-type mentions are skipped and printed.
-- `add --name N --where W --how H --category place --channel C --url U`: manual entry.
-- `verify <id> --by "<who/how>"`: only after the spot was checked in game (or confirmed by official material). Needs where, how and source channel filled in.
+```bash
+python3 "$GTAVI_ROOT/scripts/secrets_map.py" scan "$CLIP_DESK_HOME/jobs/<id>"
+```
+
+Windows virtualenv, from any directory:
+
+```bat
+"%GTAVI_ROOT%\.venv\Scripts\python.exe" "%GTAVI_ROOT%\scripts\secrets_map.py" scan "%CLIP_DESK_HOME%\jobs\<id>"
+```
+
+The interpreter is `.venv\Scripts\python.exe`. A path of `.venv\Scripts\python` without the extension is not the command this fork uses.
+
+`--csv path` before the subcommand selects another file.
+
+- `scan jobs/<id>`: reads that job's transcript and adds unverified leads. Duplicates and exploit-type mentions are skipped.
+- `add --name N --where W --how H --category place --channel C --url U`: manual entry from Vet's own session.
+- `verify <id> --by "<who/how>"`: only after the spot was checked in game or confirmed by official material.
 - `wrong <id>`: the tip did not hold up.
-- `posts --out secrets-posts.md`: HOW TO tip and Spotlight drafts per verified entry, plus a "5 hidden spots in Leonida" carousel outline when 3 or more are verified.
+- `posts --out secrets-posts.md`: HOW TO drafts from verified entries only.
 - `map --out secrets.md`: table grouped by category.
 
 ## Flow
 
-1. `scan` a transcribed video. Open each `?t=` link, read the quote, and rewrite the auto name/where/how in `secrets.csv` into a real tip.
-2. Check it in the game. `verify` or `wrong`.
-3. `posts`, then run `rule-check` on the drafts before they go out.
+1. `scan` a job he marked as his own. Rewrite the auto name, where, and how into a real tip.
+2. He checks it in the game. `verify` or `wrong`.
+3. `posts` writes drafts. Show them to him. He posts. The script does not upload.
 
 ## Rules
 
-1. Post verified entries only. Unverified is a lead, not a fact.
-2. Credit the finder on every post (`🎥 channel` plus the timestamp link). Never present a creator's find as ours.
-3. No glitches, exploits, money glitches, duplication, leaks or "play early" content. The script refuses them; do not work around it.
-4. Scan output is a transcript guess. Rewrite the name, where and how by hand; do not post the raw quote.
-5. No spoilers for story moments in launch week. Never imply the page is Rockstar. Use "GTA 6". X posts have no hashtags.
+1. Verified entries only, when drafting posts. Unverified is a lead.
+2. Credit the page (`🎥 @[HANDLE]`). The find came from his recording, not from another creator.
+3. No glitches, exploits, money glitches, duplication, leaks, or "play early."
+4. Do not post the raw transcript quote.
+5. No story spoilers in launch week. Never imply the page is Rockstar. Use "GTA 6". X posts have no hashtags.
