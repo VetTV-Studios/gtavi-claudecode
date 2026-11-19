@@ -17,7 +17,7 @@ Windows virtualenv: `"%GTAVI_ROOT%\.venv\Scripts\python.exe"`.
 - `blur`: full video centered over a blurred copy.
 - `facecam` or `react`: Vet's own camera plus the game. `react` is his face on top, not another streamer's. `--cam auto` or `--cam x:y:w:h`.
 
-Captions use Archivo Black when fontconfig has it, then Anton, Bebas Neue, Liberation Sans, or Noto Sans.
+Captions use Archivo Black when it is installed, then Anton, Bebas Neue, Liberation Sans, or Noto Sans. Without fontconfig, the same list is checked as font files, then Arial Black or Arial.
 
 Before running:
 

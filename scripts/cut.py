@@ -6,34 +6,95 @@ loudness normalised to -14 LUFS. Writes jobs/<id>/edits/clip_<n>.mp4 + .json (me
 usage: python cut.py jobs/<id> --pick 1 [--layout fill|blur|facecam|react] [--hook "TEXT"]
                      [--cam auto|x:y:w:h] [--title "TEXT" --title-style box|outline --title-secs 0] [--captions word|bubble|none]
 """
-import argparse, re, shutil, subprocess, sys
+import argparse, os, re, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from common import ffprobe, load_json, run, save_json, tool
 from facecam import face_crop_expr, find_cam, has_gameplay, inner_edges
 
-FONT_CANDIDATES = ("Archivo Black", "Anton", "Bebas Neue", "Liberation Sans", "Noto Sans")
+# Archivo Black first. Arial Black and Arial are last: Windows ships them and has no fontconfig.
+FONT_CANDIDATES = ("Archivo Black", "Anton", "Bebas Neue", "Liberation Sans", "Noto Sans", "Arial Black", "Arial")
+FONT_FILES = {
+    "archivoblack-regular.ttf": "Archivo Black",
+    "archivo black.ttf": "Archivo Black",
+    "archivoblack.ttf": "Archivo Black",
+    "anton-regular.ttf": "Anton",
+    "anton.ttf": "Anton",
+    "bebasneue-regular.ttf": "Bebas Neue",
+    "bebasneue.ttf": "Bebas Neue",
+    "liberationsans-regular.ttf": "Liberation Sans",
+    "liberationsans-bold.ttf": "Liberation Sans",
+    "notosans-regular.ttf": "Noto Sans",
+    "notosans-bold.ttf": "Noto Sans",
+    "ariblk.ttf": "Arial Black",
+    "arial black.ttf": "Arial Black",
+    "arial.ttf": "Arial",
+    "arialbd.ttf": "Arial",
+}
+
+
+def choose_font(fc_families, file_families, win32):
+    """Pick the first installed candidate. Never invent Archivo Black when it was not found."""
+    for pool in (fc_families, file_families):
+        have = {name.lower() for name in pool}
+        for name in FONT_CANDIDATES:
+            if name.lower() in have:
+                return name
+    return "Arial" if win32 else "Liberation Sans"
+
+
+def _fc_families():
+    if not shutil.which("fc-list"):
+        return set()
+    try:
+        listed = subprocess.run(["fc-list", "--format", "%{family}\n"], capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    families = set()
+    for line in (listed.stdout or "").splitlines():
+        for family in line.split(","):
+            name = family.strip()
+            if name:
+                families.add(name)
+    return families
+
+
+def _font_dirs():
+    home = Path.home()
+    windir = os.environ.get("WINDIR") or os.environ.get("SystemRoot")
+    dirs = []
+    if windir:
+        dirs.append(Path(windir) / "Fonts")
+    dirs.extend([
+        home / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts",
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+        home / ".local" / "share" / "fonts",
+        home / ".fonts",
+        Path("/Library/Fonts"),
+        Path("/System/Library/Fonts"),
+        home / "Library" / "Fonts",
+    ])
+    return [d for d in dirs if d.is_dir()]
+
+
+def _file_families():
+    found = set()
+    for directory in _font_dirs():
+        for path in directory.rglob("*"):
+            if not path.is_file():
+                continue
+            family = FONT_FILES.get(path.name.lower())
+            if family:
+                found.add(family)
+    return found
 
 
 def caption_font():
-    """Prefer Archivo Black. Use the first installed fallback when it is absent."""
-    families = set()
-    if shutil.which("fc-list"):
-        try:
-            listed = subprocess.run(["fc-list", "--format", "%{family}\n"], capture_output=True, text=True, timeout=5, check=False)
-            for line in (listed.stdout or "").splitlines():
-                for family in line.split(","):
-                    name = family.strip().lower()
-                    if name:
-                        families.add(name)
-        except (OSError, subprocess.TimeoutExpired):
-            families = set()
-    if not families:
-        return "Archivo Black"
-    for name in FONT_CANDIDATES:
-        if name.lower() in families:
-            return name
-    return "Archivo Black"
+    """Prefer Archivo Black. Fall back through fonts that are actually installed."""
+    installed = _fc_families()
+    files = set() if installed else _file_families()
+    return choose_font(installed, files, sys.platform == "win32")
 
 W, H = 1080, 1920
 

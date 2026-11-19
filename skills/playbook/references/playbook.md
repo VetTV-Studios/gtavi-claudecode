@@ -73,7 +73,7 @@ python3 "$GTAVI_ROOT/scripts/check.py" "$CLIP_DESK_HOME/jobs/<id>/edits/clip_1.m
 
 Windows virtualenv: `"%GTAVI_ROOT%\.venv\Scripts\python.exe"` and the same script path. There is no `python` shim on the VetTV Linux machines.
 
-Layouts: `fill` and `blur` for gameplay, `facecam` or `react` when the recording has Vet's own camera. `--cam auto` uses the pinned YuNet model. Captions use Archivo Black when it is installed, otherwise Anton, Bebas Neue, Liberation Sans, or Noto Sans.
+Layouts: `fill` and `blur` for gameplay, `facecam` or `react` when the recording has Vet's own camera. `--cam auto` uses the pinned YuNet model. Captions use Archivo Black when it is installed, otherwise Anton, Bebas Neue, Liberation Sans, or Noto Sans. Without fontconfig, those files are checked on disk, then Arial Black or Arial.
 
 On every clip:
 

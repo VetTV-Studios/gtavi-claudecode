@@ -72,7 +72,7 @@ python3 "$GTAVI_ROOT/scripts/live.py" "https://www.youtube.com/@VetTVHandheld/li
 
 `live.py` records only after the URL passes the allowlist. It passes `--` before the URL to yt-dlp.
 
-Captions use **Archivo Black** when that font is installed (it is on the VetTV Linux machines). Otherwise the cutter tries Anton, Bebas Neue, Liberation Sans, then Noto Sans.
+Captions use **Archivo Black** when that font is installed (it is on the VetTV Linux machines). Otherwise the cutter tries Anton, Bebas Neue, Liberation Sans, then Noto Sans. With no fontconfig (typical on Windows) it looks for those font files and, if none are there, uses Arial Black or Arial. It does not ask for Archivo Black unless the font was actually found.
 
 ## Install
 

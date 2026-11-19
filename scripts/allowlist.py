@@ -60,18 +60,23 @@ def _login_ok(login):
     return bool(login) and all(c in "abcdefghijklmnopqrstuvwxyz0123456789_" for c in login) and len(login) <= 25
 
 
-def _iter_patterns(cfg):
+def _channel_rules(cfg):
+    """Path prefixes, @handles, and exact channel ids. Display names are not rules."""
+    prefixes, handles, ids = [], [], []
     for ch in cfg.get("channels") or []:
         if not isinstance(ch, dict) or ch.get("placeholder") is True:
             continue
         raw = []
-        for key in ("url", "handle", "id"):
+        for key in ("url", "handle"):
             val = ch.get(key)
             if isinstance(val, str):
                 raw.append(val)
         for val in ch.get("match") or []:
             if isinstance(val, str):
                 raw.append(val)
+        ident = ch.get("id")
+        if isinstance(ident, str) and ident.strip():
+            ids.append(ident.strip().lower())
         for val in raw:
             val = val.strip()
             if not val:
@@ -80,29 +85,48 @@ def _iter_patterns(cfg):
             if low.startswith("http://") or low.startswith("https://"):
                 host = _hostname(val)
                 path = urlparse(val).path or ""
-                low = f"{host}{path}"
+                low = f"{host}{path}".rstrip("/")
             if low.startswith("@"):
-                yield low
-                if len(low) > 1:
-                    yield low[1:]
+                handle = low[1:]
+                if handle:
+                    handles.append(handle)
+                continue
+            if "/" in low:
+                prefixes.append(low.rstrip("/"))
+                tail = low.rstrip("/").split("/")[-1]
+                if tail.startswith("@"):
+                    handles.append(tail[1:])
             elif len(low) >= 6:
-                yield low
+                handles.append(low.lstrip("@"))
+    return prefixes, handles, ids
 
 
-def _bounded(blob, pat):
-    blob = (blob or "").lower()
-    pat = (pat or "").lower()
-    if len(pat) < 4:
+def _path_prefix_match(blob, prefix):
+    """True only when blob is the channel path or a slash-separated child of it.
+
+    `@VetTVHandheld-Clips` and `The_VetX_news` do not match the shorter names.
+    """
+    blob = (blob or "").lower().rstrip("/")
+    prefix = (prefix or "").lower().rstrip("/")
+    if len(prefix) < 4:
         return False
+    return blob == prefix or blob.startswith(prefix + "/")
+
+
+def _handle_segment(blob, handle):
+    """Match /@handle as a whole path segment. A longer handle such as @name-clips does not match."""
+    handle = (handle or "").lower().lstrip("@")
+    if len(handle) < 2 or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789_" for c in handle):
+        return False
+    blob = (blob or "").lower()
+    token = "/@" + handle
     start = 0
     while True:
-        i = blob.find(pat, start)
+        i = blob.find(token, start)
         if i < 0:
             return False
-        end = i + len(pat)
-        before_ok = i == 0 or not blob[i - 1].isalnum()
-        after_ok = end >= len(blob) or not blob[end].isalnum()
-        if before_ok and after_ok:
+        end = i + len(token)
+        if end >= len(blob) or blob[end] == "/":
             return True
         start = i + 1
 
@@ -117,25 +141,31 @@ def url_matches(url, cfg):
     if not host_allowed(url):
         return False
     blob = _url_blob(url)
-    if any(_bounded(blob, pat) for pat in _iter_patterns(cfg)):
+    prefixes, handles, _ids = _channel_rules(cfg)
+    if any(_path_prefix_match(blob, prefix) for prefix in prefixes):
+        return True
+    if any(_handle_segment(blob, handle) for handle in handles):
         return True
     login = twitch_login_from_url(url)
     return bool(login) and login in _twitch_logins(cfg)
 
 
-def _meta_blob(info):
-    parts = []
-    for key in ("webpage_url", "original_url", "channel_url", "uploader_url", "channel", "uploader",
-                "uploader_id", "channel_id", "creator"):
-        val = info.get(key) if isinstance(info, dict) else None
-        if isinstance(val, str) and val.strip():
-            parts.append(val.strip().lower())
-    return " \n ".join(parts)
-
-
 def meta_matches(info, cfg):
-    blob = _meta_blob(info)
-    return any(_bounded(blob, pat) for pat in _iter_patterns(cfg))
+    """Match channel URLs and exact ids. A display name that merely contains the handle does not count."""
+    if not isinstance(info, dict):
+        return False
+    for key in ("webpage_url", "original_url", "channel_url", "uploader_url"):
+        val = info.get(key)
+        if isinstance(val, str) and val.strip() and url_matches(val, cfg):
+            return True
+    _prefixes, _handles, ids = _channel_rules(cfg)
+    if not ids:
+        return False
+    for key in ("uploader_id", "channel_id"):
+        val = info.get(key)
+        if isinstance(val, str) and val.strip().lower() in ids:
+            return True
+    return False
 
 
 def _twitch_logins(cfg):
