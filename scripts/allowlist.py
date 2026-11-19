@@ -114,9 +114,15 @@ def _path_prefix_match(blob, prefix):
 
 
 def _handle_segment(blob, handle):
-    """Match /@handle as a whole path segment. A longer handle such as @name-clips does not match."""
+    """Match /@handle as a whole path segment. A longer handle such as @name-clips does not match.
+
+    YouTube handles may contain hyphens and periods. Those characters are part of the
+    name, so @Vet-TV matches itself and still refuses @Vet-TV-Clips.
+    """
     handle = (handle or "").lower().lstrip("@")
-    if len(handle) < 2 or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789_" for c in handle):
+    if len(handle) < 2 or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789_.-" for c in handle):
+        return False
+    if not any(c.isalnum() for c in handle):
         return False
     blob = (blob or "").lower()
     token = "/@" + handle
